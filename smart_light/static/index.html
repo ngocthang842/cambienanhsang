@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Đèn thông minh - Cử chỉ 2 tay</title>
+<style>
+:root{color-scheme:light;--bg:#f4f5f7;--card:#fff;--tx:#1d2330;--mut:#667085;--bd:#dfe3ea;--pri:#2457d6;--ok:#17803d;--bad:#c62828;--warn:#d97706}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,"Segoe UI",sans-serif}
+.app{display:grid;grid-template-columns:170px 1fr 320px;min-height:100vh}
+nav{background:var(--card);border-right:1px solid var(--bd);padding:14px 0}
+nav button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 14px;font:inherit;cursor:pointer;border-left:3px solid transparent;color:var(--tx)}
+nav button.on{background:var(--bg);border-left-color:var(--pri);font-weight:600}
+main{padding:14px;min-width:0}
+aside{background:var(--card);border-left:1px solid var(--bd);padding:12px;overflow:auto;max-height:100vh}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+aside .card{background:var(--bg)}
+h2{font-size:14px;margin:0 0 8px}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.cb{border:0;border-radius:6px;padding:8px 16px;font:600 14px system-ui;color:#fff;cursor:pointer}
+.cb.g{background:#22b04e}.cb.r{background:#ee1c25}
+.seg{display:flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:auto}
+.seg button{border:0;background:#fff;padding:8px 14px;font:600 13px system-ui;cursor:pointer;color:var(--tx)}
+.seg button.on{background:var(--pri);color:#fff}
+#cam{width:100%;aspect-ratio:4/3;max-height:50vh;object-fit:contain;background:#222;border-radius:8px;display:block}
+.stage{display:flex;justify-content:space-around;gap:10px;margin-top:14px;padding:16px 10px 12px;background:#141821;border-radius:12px}
+.bw{text-align:center;flex:1}
+.bsvg{width:130px;height:158px;display:block;margin:0 auto}
+.bname{color:#c9ced8;font-weight:700;letter-spacing:.5px;margin-top:4px}
+.bval{color:#fff;font-size:26px;font-weight:700}
+.lab{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px}
+.track{height:12px;background:#e3e6ec;border-radius:6px;overflow:hidden;margin-bottom:8px}
+.fill{height:100%;width:0;transition:width .2s}
+.fill.y{background:#f5b800}.fill.w{background:#9aa0a6}.fill.l{background:#2457d6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+.big{font-size:26px;font-weight:700}
+.pill{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600}
+.pill.on{background:#e4f5ea;color:var(--ok)}.pill.off{background:#fde8e8;color:var(--bad)}
+.log{max-height:130px;overflow:auto;margin:0;padding:0;list-style:none}
+.log li{padding:4px 0;border-bottom:1px solid var(--bd);font-size:13px}
+.log .bad{color:var(--bad)}.log .ok{color:var(--ok)}.log .warn{color:var(--warn)}
+.stat b{font-size:22px;display:block}.stat span{color:var(--mut);font-size:12px}
+.tag{color:var(--mut);font-size:12px}
+.note{color:var(--warn);font-size:12px;min-height:16px;margin-top:6px}
+canvas{width:100%;height:260px;background:#fff;border:1px solid var(--bd);border-radius:8px;display:block}
+#room{width:100%;display:block;border-radius:10px}
+.hide{display:none!important}
+@media (max-width:860px){.app{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <button id="t1" class="on" onclick="tab(1)">🏠 Chung</button>
+    <button id="t2" onclick="tab(2)">📊 Dashboard</button>
+  </nav>
+
+  <main>
+    <div id="v1">
+      <div class="card">
+        <div class="bar">
+          <button class="cb g" onclick="ctl('start')">▶ Bật camera</button>
+          <button class="cb r" onclick="ctl('stop')">■ Tắt</button>
+          <div class="seg">
+            <button id="mAuto" onclick="setMode('AUTO')">🌗 Tự động (LDR)</button>
+            <button id="mMan" onclick="setMode('MANUAL')">🖐 Thủ công (2 tay)</button>
+          </div>
+        </div>
+        <img id="cam" src="/video" alt="camera">
+
+        <div class="stage">
+          <div class="bw"><div id="bulbY"></div><div class="bname">ĐÈN VÀNG · tay trái</div><div class="bval" id="vY">0%</div></div>
+          <div class="bw"><div id="bulbW"></div><div class="bname">ĐÈN TRẮNG · tay phải</div><div class="bval" id="vW">0%</div></div>
+        </div>
+        <div class="note" id="simnote"></div>
+
+        <!-- Chỉ hiện ở chế độ THỦ CÔNG -->
+        <div id="manBox">
+          <div class="grid2">
+            <div>
+              <div class="lab"><span>🖐 Tay trái (vàng)</span><b id="vHandL">—</b></div>
+              <div class="track"><div class="fill y" id="bHandL"></div></div>
+            </div>
+            <div>
+              <div class="lab"><span>🖐 Tay phải (trắng)</span><b id="vHandR">—</b></div>
+              <div class="track"><div class="fill w" id="bHandR"></div></div>
+            </div>
+          </div>
+          <div class="tag">Thủ công: mỗi tay chụm / mở ngón cái và ngón trỏ để chỉnh đèn của tay đó.</div>
+        </div>
+
+        <!-- Chỉ hiện ở chế độ TỰ ĐỘNG -->
+        <div id="autoBox">
+          <div class="lab"><span>☀ Ánh sáng phòng</span><b id="vLight">0%</b></div>
+          <div class="track"><div class="fill l" id="bLight"></div></div>
+          <div class="tag">Tự động: cả hai đèn sáng ngược với ánh sáng phòng. Đưa 1 tay vào camera để chỉnh ánh sáng phòng bằng cử chỉ.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="v2" class="hide">
+      <div class="card">
+        <h2>Thống kê hiện tại</h2>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+          <div class="stat"><b id="dRaw">—</b><span>ADC thô (0–4095)</span></div>
+          <div class="stat"><b id="dLight">0%</b><span>Ánh sáng phòng</span></div>
+          <div class="stat"><b id="dY">0%</b><span>Đèn vàng</span></div>
+          <div class="stat"><b id="dW">0%</b><span>Đèn trắng</span></div>
+          <div class="stat"><b id="dMode">—</b><span>Chế độ</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Biểu đồ 2 phút gần nhất</h2>
+        <canvas id="chart" width="900" height="260"></canvas>
+        <div class="tag" style="margin-top:6px"><span style="color:#2457d6">■ Ánh sáng phòng (LDR)</span> &nbsp; <span style="color:#e0a800">■ Đèn vàng</span> &nbsp; <span style="color:#6b7280">■ Đèn trắng</span></div>
+      </div>
+    </div>
+  </main>
+
+  <aside>
+    <div class="card"><h2>☀ Cảm biến LDR</h2>
+      <div class="big" id="sLight">0%</div>
+      <div class="tag">ADC thô: <span id="sRaw">—</span></div>
+      <div style="margin-top:6px">MQTT (Python): <span class="pill off" id="mq">Chưa nối</span></div>
+      <div style="margin-top:4px">ESP32: <span class="pill off" id="online">Mất kết nối</span></div></div>
+    <div class="card"><h2>💡 Hai đèn LED</h2>
+      <div class="lab"><span>Vàng</span><b id="sY">0%</b></div>
+      <div class="lab"><span>Trắng</span><b id="sW">0%</b></div>
+      <div class="tag">Chế độ: <b id="sMode">—</b></div></div>
+    <div class="card"><h2>📝 Nhật ký</h2><ul class="log" id="log"></ul></div>
+
+    <div class="card">
+      <h2>🏠 Phòng mô phỏng</h2>
+      <svg id="room" viewBox="0 0 300 220">
+        <defs>
+          <radialGradient id="lgY" cx="0.28" cy="0.05" r="0.9"><stop offset="0" stop-color="#ffc83c" stop-opacity="0.95"/><stop offset="1" stop-color="#ffc83c" stop-opacity="0"/></radialGradient>
+          <radialGradient id="lgW" cx="0.72" cy="0.05" r="0.9"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+          <filter id="rblur" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
+          <clipPath id="rc"><rect width="300" height="220" rx="10"/></clipPath>
+        </defs>
+        <g clip-path="url(#rc)">
+          <rect width="300" height="220" fill="#1c2029"/>
+          <polygon points="0,150 300,150 300,220 0,220" fill="#2a2f3b"/>
+          <rect id="sky" x="118" y="38" width="64" height="62" rx="3" fill="#0b1226"/>
+          <circle id="sun" cx="150" cy="70" r="13" fill="#ffe27a" opacity="0"/>
+          <path d="M150 38V100M118 69H182" stroke="#12151c" stroke-width="3"/>
+          <rect x="118" y="38" width="64" height="62" rx="3" fill="none" stroke="#12151c" stroke-width="4"/>
+          <rect x="16" y="104" width="92" height="24" rx="9" fill="#444c5e"/>
+          <rect x="16" y="120" width="92" height="38" rx="9" fill="#3b4252"/>
+          <rect x="170" y="142" width="74" height="8" rx="3" fill="#4a5163"/>
+          <rect x="176" y="150" width="6" height="34" fill="#3b4252"/><rect x="232" y="150" width="6" height="34" fill="#3b4252"/>
+          <rect x="262" y="150" width="22" height="26" rx="3" fill="#6b4a3a"/>
+          <circle cx="273" cy="138" r="14" fill="#2f6b45"/><circle cx="264" cy="146" r="9" fill="#38804f"/><circle cx="283" cy="147" r="9" fill="#38804f"/>
+          <ellipse id="poolY" cx="84" cy="188" rx="64" ry="16" fill="#ffc83c" filter="url(#rblur)" opacity="0"/>
+          <ellipse id="poolW" cx="216" cy="188" rx="64" ry="16" fill="#ffffff" filter="url(#rblur)" opacity="0"/>
+          <rect id="lightY" width="300" height="220" fill="url(#lgY)" opacity="0"/>
+          <rect id="lightW" width="300" height="220" fill="url(#lgW)" opacity="0"/>
+          <circle id="gcY" cx="84" cy="30" r="26" fill="#ffc83c" filter="url(#rblur)" opacity="0"/>
+          <circle id="gcW" cx="216" cy="30" r="26" fill="#ffffff" filter="url(#rblur)" opacity="0"/>
+          <line x1="84" y1="0" x2="84" y2="21" stroke="#555b69" stroke-width="2"/>
+          <line x1="216" y1="0" x2="216" y2="21" stroke="#555b69" stroke-width="2"/>
+          <circle id="lampY" cx="84" cy="30" r="10" fill="#4a4f5c" stroke="#12151c" stroke-width="2"/>
+          <circle id="lampW" cx="216" cy="30" r="10" fill="#4a4f5c" stroke="#12151c" stroke-width="2"/>
+        </g>
+        <rect x="1" y="1" width="298" height="218" rx="10" fill="none" stroke="#12151c" stroke-width="2"/>
+      </svg>
+      <div class="tag" style="margin-top:6px">Ánh sáng phòng: <b id="roomTone">Tắt</b></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const hex = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+const mix = (a,b,t) => { const A = hex(a), B = hex(b); return `rgb(${A.map((v,i) => Math.round(v+(B[i]-v)*t)).join(",")})`; };
+
+function tab(n){ [1,2].forEach(i => { $("v"+i).classList.toggle("hide", i!==n); $("t"+i).classList.toggle("on", i===n); }); }
+async function ctl(a){ await fetch("/api/"+a, {method:"POST"}); }
+
+function showMode(m){
+  $("autoBox").classList.toggle("hide", m !== "AUTO");
+  $("manBox").classList.toggle("hide", m !== "MANUAL");
+  $("mAuto").classList.toggle("on", m === "AUTO");
+  $("mMan").classList.toggle("on", m === "MANUAL");
+}
+async function setMode(m){
+  showMode(m);   // đổi giao diện ngay, không chờ ESP32
+  await fetch("/api/mode", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode:m})});
+}
+
+/* ---------- Bóng đèn ---------- */
+const GLASS = "M70 6 C34 6 16 34 25 62 C31 80 50 86 50 110 L90 110 C90 86 109 80 115 62 C124 34 106 6 70 6 Z";
+function bulbSVG(k, c1, c2, halo){
+  return `<svg viewBox="0 0 140 170" class="bsvg">
+  <defs>
+    <radialGradient id="bg${k}" cx="50%" cy="38%" r="62%"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></radialGradient>
+    <filter id="bf${k}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="11"/></filter>
+  </defs>
+  <circle id="halo${k}" cx="70" cy="62" r="60" fill="${halo}" filter="url(#bf${k})" opacity="0"/>
+  <path d="${GLASS}" fill="#454b59" stroke="#232831" stroke-width="3"/>
+  <path id="on${k}" d="${GLASS}" fill="url(#bg${k})" stroke="#232831" stroke-width="3" opacity="0"/>
+  <path id="fil${k}" d="M56 98 L60 72 L70 86 L80 72 L84 98" fill="none" stroke="#8a8f99" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="52" y="112" width="36" height="9" rx="3" fill="#9aa0ab"/>
+  <rect x="52" y="123" width="36" height="9" rx="3" fill="#868c97"/>
+  <rect x="58" y="134" width="24" height="9" rx="4" fill="#6f7580"/>
+  </svg>`;
+}
+$("bulbY").innerHTML = bulbSVG("Y", "#fff6b0", "#ffb800", "#ffc400");
+$("bulbW").innerHTML = bulbSVG("W", "#ffffff", "#cfe0ff", "#8fbcff");
+
+function updateBulb(k, v){
+  const a = v/100;
+  $("on"+k).setAttribute("opacity", a.toFixed(2));
+  $("halo"+k).setAttribute("opacity", (a*0.95).toFixed(2));
+  $("fil"+k).setAttribute("stroke", a > 0.15 ? "#d97706" : "#8a8f99");
+}
+
+/* ---------- Phòng mô phỏng ---------- */
+function updateRoom(y, w, light){
+  const ay = y/100, aw = w/100, al = light/100;
+  $("lightY").setAttribute("opacity", ay.toFixed(2));
+  $("lightW").setAttribute("opacity", aw.toFixed(2));
+  $("poolY").setAttribute("opacity", (ay*0.55).toFixed(2));
+  $("poolW").setAttribute("opacity", (aw*0.55).toFixed(2));
+  $("gcY").setAttribute("opacity", (ay*0.9).toFixed(2));
+  $("gcW").setAttribute("opacity", (aw*0.9).toFixed(2));
+  $("lampY").style.fill = mix("#4a4f5c", "#ffd24a", ay);
+  $("lampW").style.fill = mix("#4a4f5c", "#ffffff", aw);
+  $("sky").style.fill = mix("#0b1226", "#7ec8ff", al);
+  $("sun").setAttribute("opacity", al.toFixed(2));
+  const t = y + w;
+  let tone = "Tắt";
+  if(t >= 5){
+    const r = w / t;
+    tone = r < 0.35 ? "Ấm (vàng)" : r > 0.65 ? "Trắng" : "Trung tính (pha vàng + trắng)";
+  }
+  $("roomTone").textContent = tone;
+}
+
+/* ---------- Biểu đồ ---------- */
+function drawChart(h){
+  const c = $("chart"), g = c.getContext("2d"), W = c.width, H = c.height;
+  g.clearRect(0,0,W,H);
+  g.strokeStyle = "#e3e6ec"; g.fillStyle = "#667085"; g.font = "12px system-ui"; g.lineWidth = 1;
+  [0,50,100].forEach(v => { const y = H-10-(H-20)*v/100; g.beginPath(); g.moveTo(34,y); g.lineTo(W,y); g.stroke(); g.fillText(v+"%", 2, y+4); });
+  const line = (key, color, dash) => {
+    if(h.length < 2) return;
+    g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dash || []); g.beginPath();
+    h.forEach((p,i) => { const x = 34 + (W-40)*i/239; const y = H-10-(H-20)*p[key]/100; i ? g.lineTo(x,y) : g.moveTo(x,y); });
+    g.stroke(); g.setLineDash([]);
+  };
+  line("light", "#2457d6"); line("y", "#e0a800"); line("w", "#6b7280", [6,4]);
+}
+
+/* ---------- Cập nhật từ server ---------- */
+async function poll(){
+  try{
+    const s = await (await fetch("/api/status")).json();
+    const d = s.dev || {};
+    const handAmb = s.mode === "AUTO" && s.room_hand != null;
+    let light = (s.online || handAmb) ? (d.light ?? 0) : 0;   // mất kết nối -> không hiện số cũ
+    let y = 0, w = 0, note = "";
+    const fresh = s.online && d.mode === s.mode;
+
+    if(s.mode === "MANUAL"){
+      if(s.hand_seen.L || s.hand_seen.R){ y = s.sent.Y; w = s.sent.W; }
+      else if(fresh){ y = d.y ?? 0; w = d.w ?? 0; }
+      if(!s.online) note = "ESP32 chưa phản hồi: đèn hiển thị theo lệnh tay của bạn.";
+    } else {
+      if(fresh || handAmb){ y = d.y ?? 0; w = d.w ?? 0; }
+      else if(s.online){ y = 100 - light; w = 100 - light; }
+      else note = "ESP32 chưa phản hồi: chưa có dữ liệu từ cảm biến.";
+    }
+    $("simnote").textContent = note;
+    showMode(s.mode);
+
+    ["L","R"].forEach(k => {
+      $("vHand"+k).textContent = s.hand_seen[k] ? s.hand_pct[k] + "%" : "—";
+      $("bHand"+k).style.width = (s.hand_seen[k] ? s.hand_pct[k] : 0) + "%";
+    });
+    $("vLight").textContent = light + "%"; $("bLight").style.width = light + "%";
+    $("vY").textContent = y + "%"; $("vW").textContent = w + "%";
+    updateBulb("Y", y); updateBulb("W", w);
+    updateRoom(y, w, light);
+
+    const raw = s.online ? (d.raw ?? "—") : "—";
+    $("sLight").textContent = light + "%"; $("sRaw").textContent = raw;
+    $("sY").textContent = y + "%"; $("sW").textContent = w + "%";
+    $("sMode").textContent = s.mode === "AUTO" ? "Tự động" : "Thủ công";
+    $("online").textContent = s.online ? "Đang kết nối" : "Mất kết nối";
+    $("online").className = "pill " + (s.online ? "on" : "off");
+    $("mq").textContent = s.mqtt ? "Đã nối broker" : "Chưa nối";
+    $("mq").className = "pill " + (s.mqtt ? "on" : "off");
+
+    $("dRaw").textContent = raw; $("dLight").textContent = light + "%";
+    $("dY").textContent = y + "%"; $("dW").textContent = w + "%";
+    $("dMode").textContent = s.mode === "AUTO" ? "Tự động" : "Thủ công";
+    $("log").innerHTML = s.events.slice(0,8).map(e => `<li class="${e.level}">${e.time} · ${e.text}</li>`).join("") || '<li class="tag">Chưa có</li>';
+    if(!$("v2").classList.contains("hide")) drawChart(s.hist);
+  }catch(e){ console.error(e); }
+}
+showMode("AUTO");
+setInterval(poll, 300);
+</script>
+</body>
+</html>
